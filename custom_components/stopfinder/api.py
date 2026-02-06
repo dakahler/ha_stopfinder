@@ -59,7 +59,7 @@ class StopfinderApiClient:
 
     async def _get_stopfinder_base_url(self) -> str:
         """Get the Stopfinder API base URL from the Transfinder server."""
-        url = f"{self._base_url}/getStopfinder.asp?/email=test"
+        url = f"{self._base_url}/$xcom/getStopfinder.asp?/email=test"
         try:
             async with self._session.get(
                 url, headers=self._get_headers(), ssl=False
