@@ -56,6 +56,15 @@ async def async_setup_entry(
                 StopfinderSchoolSensor(
                     coordinator, entry, rider_id, student_name, student
                 ),
+                StopfinderPickupStopSensor(
+                    coordinator, entry, rider_id, student_name, student
+                ),
+                StopfinderDropoffStopSensor(
+                    coordinator, entry, rider_id, student_name, student
+                ),
+                StopfinderRouteStartSensor(
+                    coordinator, entry, rider_id, student_name, student
+                ),
             ]
         )
 
@@ -324,4 +333,124 @@ class StopfinderSchoolSensor(StopfinderBaseSensor):
             return {}
         return {
             "grade": student.get("grade", ""),
+        }
+
+
+class StopfinderPickupStopSensor(StopfinderBaseSensor):
+    """Sensor for next pickup stop name."""
+
+    def __init__(
+        self,
+        coordinator: StopfinderCoordinator,
+        entry: ConfigEntry,
+        rider_id: str,
+        student_name: str,
+        student_data: dict[str, Any],
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            entry,
+            rider_id,
+            student_name,
+            student_data,
+            SensorEntityDescription(
+                key="pickup_stop",
+                name="Pickup Stop",
+                icon="mdi:map-marker",
+            ),
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the pickup stop name for the next trip."""
+        trip = self._get_next_trip(to_school=True)
+        if not trip:
+            return None
+        return trip.get("pickup_stop_name") or None
+
+
+class StopfinderDropoffStopSensor(StopfinderBaseSensor):
+    """Sensor for next drop-off stop name."""
+
+    def __init__(
+        self,
+        coordinator: StopfinderCoordinator,
+        entry: ConfigEntry,
+        rider_id: str,
+        student_name: str,
+        student_data: dict[str, Any],
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            entry,
+            rider_id,
+            student_name,
+            student_data,
+            SensorEntityDescription(
+                key="dropoff_stop",
+                name="Drop-off Stop",
+                icon="mdi:map-marker-check",
+            ),
+        )
+
+    @property
+    def native_value(self) -> str | None:
+        """Return the drop-off stop name for the next trip."""
+        trip = self._get_next_trip(to_school=False)
+        if not trip:
+            return None
+        return trip.get("dropoff_stop_name") or None
+
+
+class StopfinderRouteStartSensor(StopfinderBaseSensor):
+    """Sensor for when the bus route starts."""
+
+    def __init__(
+        self,
+        coordinator: StopfinderCoordinator,
+        entry: ConfigEntry,
+        rider_id: str,
+        student_name: str,
+        student_data: dict[str, Any],
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(
+            coordinator,
+            entry,
+            rider_id,
+            student_name,
+            student_data,
+            SensorEntityDescription(
+                key="route_start",
+                name="Route Start",
+                device_class=SensorDeviceClass.TIMESTAMP,
+                icon="mdi:bus-alert",
+            ),
+        )
+
+    @property
+    def native_value(self) -> datetime | None:
+        """Return the start time of the next bus route."""
+        trip = self._get_next_trip()
+        if not trip:
+            return None
+        time_str = trip.get("start_time")
+        if not time_str:
+            return None
+        try:
+            return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            return None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return extra state attributes."""
+        trip = self._get_next_trip()
+        if not trip:
+            return {}
+        return {
+            "trip_name": trip.get("name", ""),
+            "bus_number": trip.get("bus_number", ""),
         }

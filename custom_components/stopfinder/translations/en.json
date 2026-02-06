@@ -36,6 +36,15 @@
       },
       "school": {
         "name": "School"
+      },
+      "pickup_stop": {
+        "name": "Pickup Stop"
+      },
+      "dropoff_stop": {
+        "name": "Drop-off Stop"
+      },
+      "route_start": {
+        "name": "Route Start"
       }
     }
   }

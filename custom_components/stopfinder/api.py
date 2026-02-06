@@ -188,22 +188,24 @@ class StopfinderApiClient:
     ) -> list[dict[str, Any]]:
         """Parse the schedule response."""
         data = await response.json()
-        schedules = []
+        students_by_id: dict[str, dict[str, Any]] = {}
 
         if isinstance(data, list):
             for schedule_data in data:
                 student_schedules = schedule_data.get("studentSchedules", [])
                 for student in student_schedules:
-                    schedule = {
-                        "first_name": student.get("firstName", ""),
-                        "last_name": student.get("lastName", ""),
-                        "grade": student.get("grade", ""),
-                        "school": student.get("school", ""),
-                        "rider_id": student.get("riderId", ""),
-                        "trips": [],
-                    }
+                    rider_id = student.get("riderId", "")
+                    if rider_id not in students_by_id:
+                        students_by_id[rider_id] = {
+                            "first_name": student.get("firstName", ""),
+                            "last_name": student.get("lastName", ""),
+                            "grade": student.get("grade", ""),
+                            "school": student.get("school", ""),
+                            "rider_id": rider_id,
+                            "trips": [],
+                        }
                     for trip in student.get("trips", []):
-                        schedule["trips"].append(
+                        students_by_id[rider_id]["trips"].append(
                             {
                                 "name": trip.get("name", ""),
                                 "bus_number": trip.get("busNumber", ""),
@@ -213,10 +215,11 @@ class StopfinderApiClient:
                                 "dropoff_stop_name": trip.get("dropOffStopName", ""),
                                 "to_school": trip.get("toSchool", False),
                                 "vehicle_id": trip.get("vehicleId", ""),
+                                "start_time": trip.get("startTime"),
+                                "finish_time": trip.get("finishTime"),
                             }
                         )
-                    schedules.append(schedule)
-        return schedules
+        return list(students_by_id.values())
 
     async def test_connection(self) -> bool:
         """Test the connection to the API."""
