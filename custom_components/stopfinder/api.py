@@ -68,9 +68,10 @@ class StopfinderApiClient:
                     raise StopfinderConnectionError(
                         f"Failed to get Stopfinder URL: {response.status}"
                     )
-                data = await response.json()
-                if isinstance(data, dict) and "sfApiUri" in data:
-                    return data["sfApiUri"]
+                data = await response.text()
+                data = data.strip()
+                if data.startswith("http"):
+                    return data
                 raise StopfinderConnectionError("Invalid response from Stopfinder discovery")
         except aiohttp.ClientError as err:
             raise StopfinderConnectionError(f"Connection error: {err}") from err
