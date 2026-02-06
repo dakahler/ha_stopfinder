@@ -95,9 +95,9 @@ class StopfinderApiClient:
             async with self._session.post(
                 url, json=auth_data, headers=self._get_headers(), ssl=False
             ) as response:
-                if response.status == 401:
+                if response.status in (400, 401):
                     raise StopfinderAuthError("Invalid credentials")
-                if response.status != 200:
+                if response.status not in (200, 201):
                     raise StopfinderAuthError(
                         f"Authentication failed: {response.status}"
                     )
