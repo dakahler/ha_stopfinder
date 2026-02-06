@@ -183,6 +183,18 @@ class StopfinderApiClient:
         except aiohttp.ClientError as err:
             raise StopfinderConnectionError(f"Connection error: {err}") from err
 
+    @staticmethod
+    def _adjust_time(time_str: str | None, adjust_minutes: int) -> str | None:
+        """Apply adjustMinutes offset to a time string."""
+        if not time_str or adjust_minutes == 0:
+            return time_str
+        try:
+            dt = datetime.fromisoformat(time_str)
+            dt += timedelta(minutes=adjust_minutes)
+            return dt.isoformat()
+        except (ValueError, AttributeError):
+            return time_str
+
     async def _parse_schedule_response(
         self, response: aiohttp.ClientResponse
     ) -> list[dict[str, Any]]:
@@ -205,18 +217,27 @@ class StopfinderApiClient:
                             "trips": [],
                         }
                     for trip in student.get("trips", []):
+                        adjust = trip.get("adjustMinutes", 0)
                         students_by_id[rider_id]["trips"].append(
                             {
                                 "name": trip.get("name", ""),
                                 "bus_number": trip.get("busNumber", ""),
-                                "pickup_time": trip.get("pickUpTime"),
+                                "pickup_time": self._adjust_time(
+                                    trip.get("pickUpTime"), adjust
+                                ),
                                 "pickup_stop_name": trip.get("pickUpStopName", ""),
-                                "dropoff_time": trip.get("dropOffTime"),
+                                "dropoff_time": self._adjust_time(
+                                    trip.get("dropOffTime"), adjust
+                                ),
                                 "dropoff_stop_name": trip.get("dropOffStopName", ""),
                                 "to_school": trip.get("toSchool", False),
                                 "vehicle_id": trip.get("vehicleId", ""),
-                                "start_time": trip.get("startTime"),
-                                "finish_time": trip.get("finishTime"),
+                                "start_time": self._adjust_time(
+                                    trip.get("startTime"), adjust
+                                ),
+                                "finish_time": self._adjust_time(
+                                    trip.get("finishTime"), adjust
+                                ),
                             }
                         )
         return list(students_by_id.values())
