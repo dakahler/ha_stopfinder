@@ -10,7 +10,7 @@
           "password": "Password"
         },
         "data_description": {
-          "base_url": "The base URL for your school district's Transfinder instance (e.g., https://www.mytransfinder.com)"
+          "base_url": "The base URL for your school district's Transfinder instance"
         }
       }
     },
