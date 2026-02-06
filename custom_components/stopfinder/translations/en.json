@@ -1,0 +1,42 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Stopfinder",
+        "description": "Enter your Stopfinder credentials",
+        "data": {
+          "base_url": "Transfinder Base URL",
+          "username": "Email",
+          "password": "Password"
+        },
+        "data_description": {
+          "base_url": "The base URL for your school district's Transfinder instance (e.g., https://www.mytransfinder.com)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Stopfinder",
+      "invalid_auth": "Invalid email or password",
+      "unknown": "An unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "This account is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_pickup": {
+        "name": "Next Pickup"
+      },
+      "next_dropoff": {
+        "name": "Next Drop-off"
+      },
+      "bus_number": {
+        "name": "Bus Number"
+      },
+      "school": {
+        "name": "School"
+      }
+    }
+  }
+}
