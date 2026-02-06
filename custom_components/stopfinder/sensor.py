@@ -16,6 +16,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import StopfinderCoordinator
@@ -100,6 +101,19 @@ class StopfinderBaseSensor(CoordinatorEntity[StopfinderCoordinator], SensorEntit
             entry_type=DeviceEntryType.SERVICE,
         )
 
+    @staticmethod
+    def _parse_datetime(time_str: str | None) -> datetime | None:
+        """Parse a datetime string and ensure it is timezone-aware."""
+        if not time_str:
+            return None
+        try:
+            dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
+            return dt
+        except (ValueError, AttributeError):
+            return None
+
     def _get_student_data(self) -> dict[str, Any] | None:
         """Get current student data from coordinator."""
         if not self.coordinator.data:
@@ -116,7 +130,7 @@ class StopfinderBaseSensor(CoordinatorEntity[StopfinderCoordinator], SensorEntit
         if not student:
             return None
 
-        now = datetime.now()
+        now = dt_util.now()
         trips = student.get("trips", [])
 
         next_trip = None
@@ -127,20 +141,14 @@ class StopfinderBaseSensor(CoordinatorEntity[StopfinderCoordinator], SensorEntit
             if to_school is not None and trip.get("to_school") != to_school:
                 continue
 
-            # Get the relevant time
-            time_str = trip.get("pickup_time") if to_school else trip.get("dropoff_time")
-            if not time_str:
+            # Get the relevant time based on trip direction
+            if to_school or (to_school is None and trip.get("to_school")):
                 time_str = trip.get("pickup_time")
+            else:
+                time_str = trip.get("dropoff_time") or trip.get("pickup_time")
 
-            if not time_str:
-                continue
-
-            try:
-                trip_time = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-                # Make naive for comparison if needed
-                if trip_time.tzinfo:
-                    trip_time = trip_time.replace(tzinfo=None)
-            except (ValueError, AttributeError):
+            trip_time = self._parse_datetime(time_str)
+            if not trip_time:
                 continue
 
             # Only consider future trips
@@ -184,13 +192,7 @@ class StopfinderNextPickupSensor(StopfinderBaseSensor):
         trip = self._get_next_trip(to_school=True)
         if not trip:
             return None
-        time_str = trip.get("pickup_time")
-        if not time_str:
-            return None
-        try:
-            return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            return None
+        return self._parse_datetime(trip.get("pickup_time"))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -237,13 +239,7 @@ class StopfinderNextDropoffSensor(StopfinderBaseSensor):
         trip = self._get_next_trip(to_school=False)
         if not trip:
             return None
-        time_str = trip.get("dropoff_time")
-        if not time_str:
-            return None
-        try:
-            return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            return None
+        return self._parse_datetime(trip.get("dropoff_time"))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -436,13 +432,7 @@ class StopfinderRouteStartSensor(StopfinderBaseSensor):
         trip = self._get_next_trip()
         if not trip:
             return None
-        time_str = trip.get("start_time")
-        if not time_str:
-            return None
-        try:
-            return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            return None
+        return self._parse_datetime(trip.get("start_time"))
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
