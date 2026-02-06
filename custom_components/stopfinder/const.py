@@ -4,7 +4,7 @@ DOMAIN = "stopfinder"
 
 CONF_BASE_URL = "base_url"
 
-DEFAULT_SCAN_INTERVAL = 300  # 5 minutes
+DEFAULT_SCAN_INTERVAL = 3600  # 60 minutes
 
 # API Constants
 API_VERSION = "1.1"
