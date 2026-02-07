@@ -21,7 +21,7 @@ Each student registered in your Stopfinder account gets their own set of sensors
 2. Click on "Integrations"
 3. Click the three dots in the top right corner
 4. Select "Custom repositories"
-5. Add `https://github.com/VoltageSolutions/ha-stopfinder` as a custom repository with category "Integration"
+5. Add `https://github.com/dakahler/ha_stopfinder` as a custom repository with category "Integration"
 6. Click "Add"
 7. Search for "Stopfinder" and install it
 8. Restart Home Assistant
