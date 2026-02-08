@@ -44,6 +44,18 @@ class StopfinderCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """Fetch data from API."""
         try:
             schedules = await self.client.get_schedules()
+            _LOGGER.debug(
+                "Update successful: %d students",
+                len(schedules),
+            )
             return {"students": schedules}
         except StopfinderApiError as err:
+            if self.data:
+                _LOGGER.warning(
+                    "Error fetching data (%s), keeping last known data with %d students",
+                    err,
+                    len(self.data.get("students", [])),
+                )
+                return self.data
+            _LOGGER.error("Error fetching data with no previous data to fall back on: %s", err)
             raise UpdateFailed(f"Error communicating with API: {err}") from err

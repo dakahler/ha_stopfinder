@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Any
@@ -9,6 +10,8 @@ from typing import Any
 import aiohttp
 
 from .const import API_VERSION, APP_VERSION, USER_AGENT
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class StopfinderApiError(Exception):
@@ -60,6 +63,7 @@ class StopfinderApiClient:
     async def _get_stopfinder_base_url(self) -> str:
         """Get the Stopfinder API base URL from the Transfinder server."""
         url = f"{self._base_url}/$xcom/getStopfinder.asp?/email=test"
+        _LOGGER.debug("Discovering API base URL from %s", url)
         try:
             async with self._session.get(
                 url, headers=self._get_headers(), ssl=False
@@ -71,6 +75,7 @@ class StopfinderApiClient:
                 data = await response.text()
                 data = data.strip()
                 if data.startswith("http"):
+                    _LOGGER.debug("Discovered API base URL: %s", data)
                     return data
                 raise StopfinderConnectionError("Invalid response from Stopfinder discovery")
         except aiohttp.ClientError as err:
@@ -91,13 +96,16 @@ class StopfinderApiClient:
         }
 
         url = f"{self._api_base_url}/tokens"
+        _LOGGER.debug("Authenticating user %s at %s", self._username, url)
         try:
             async with self._session.post(
                 url, json=auth_data, headers=self._get_headers(), ssl=False
             ) as response:
                 if response.status in (400, 401):
+                    _LOGGER.debug("Authentication rejected: status %s", response.status)
                     raise StopfinderAuthError("Invalid credentials")
                 if response.status not in (200, 201):
+                    _LOGGER.debug("Authentication failed: status %s", response.status)
                     raise StopfinderAuthError(
                         f"Authentication failed: {response.status}"
                     )
@@ -105,6 +113,7 @@ class StopfinderApiClient:
                 self._token = data.get("token")
                 if not self._token:
                     raise StopfinderAuthError("No token in response")
+                _LOGGER.debug("Authentication successful")
         except aiohttp.ClientError as err:
             raise StopfinderConnectionError(f"Connection error: {err}") from err
 
@@ -114,6 +123,7 @@ class StopfinderApiClient:
             self._api_base_url = await self._get_stopfinder_base_url()
 
         url = f"{self._api_base_url}/systems/apiversions"
+        _LOGGER.debug("Fetching client ID from %s", url)
         try:
             async with self._session.get(
                 url, headers=self._get_headers(include_token=True), ssl=False
@@ -125,6 +135,7 @@ class StopfinderApiClient:
                 data = await response.json()
                 if isinstance(data, list) and len(data) > 0:
                     self._client_id = data[0].get("clientId")
+                    _LOGGER.debug("Got client ID: %s", self._client_id)
                     return self._client_id
                 raise StopfinderApiError("Invalid API versions response")
         except aiohttp.ClientError as err:
@@ -141,6 +152,7 @@ class StopfinderApiClient:
     ) -> list[dict[str, Any]]:
         """Get student schedules."""
         if not self._token:
+            _LOGGER.debug("No token, authenticating first")
             await self.authenticate()
 
         if not self._api_base_url:
@@ -159,27 +171,45 @@ class StopfinderApiClient:
         if self._client_id:
             headers["X-Client-Keys"] = self._client_id
 
+        _LOGGER.debug("Fetching schedules from %s to %s", start_str, end_str)
         try:
             async with self._session.get(url, headers=headers, ssl=False) as response:
-                if response.status == 401:
-                    # Token expired, re-authenticate
-                    await self.authenticate()
-                    headers = self._get_headers(include_token=True)
-                    if self._client_id:
-                        headers["X-Client-Keys"] = self._client_id
-                    async with self._session.get(
-                        url, headers=headers, ssl=False
-                    ) as retry_response:
-                        if retry_response.status != 200:
-                            raise StopfinderApiError(
-                                f"Failed to get schedules: {retry_response.status}"
-                            )
-                        return await self._parse_schedule_response(retry_response)
-                if response.status != 200:
-                    raise StopfinderApiError(
-                        f"Failed to get schedules: {response.status}"
+                if response.status == 200:
+                    result = await self._parse_schedule_response(response)
+                    _LOGGER.debug(
+                        "Fetched schedules: %d students, %d total trips",
+                        len(result),
+                        sum(len(s.get("trips", [])) for s in result),
                     )
-                return await self._parse_schedule_response(response)
+                    return result
+                # Any non-200 might be a stale token; re-authenticate and retry
+                _LOGGER.debug(
+                    "Schedule request failed with status %s, re-authenticating",
+                    response.status,
+                )
+                self._token = None
+                await self.authenticate()
+                headers = self._get_headers(include_token=True)
+                if self._client_id:
+                    headers["X-Client-Keys"] = self._client_id
+                async with self._session.get(
+                    url, headers=headers, ssl=False
+                ) as retry_response:
+                    if retry_response.status != 200:
+                        _LOGGER.error(
+                            "Schedule retry also failed with status %s",
+                            retry_response.status,
+                        )
+                        raise StopfinderApiError(
+                            f"Failed to get schedules: {retry_response.status}"
+                        )
+                    result = await self._parse_schedule_response(retry_response)
+                    _LOGGER.debug(
+                        "Fetched schedules after retry: %d students, %d total trips",
+                        len(result),
+                        sum(len(s.get("trips", [])) for s in result),
+                    )
+                    return result
         except aiohttp.ClientError as err:
             raise StopfinderConnectionError(f"Connection error: {err}") from err
 
