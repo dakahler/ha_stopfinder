@@ -214,6 +214,20 @@ class StopfinderApiClient:
             raise StopfinderConnectionError(f"Connection error: {err}") from err
 
     @staticmethod
+    def _fix_date(time_str: str | None, schedule_date: str) -> str | None:
+        """Replace the date portion of a time string with the correct schedule date.
+
+        The API returns times with an incorrect/static date; the real date
+        comes from the parent schedule object.
+        """
+        if not time_str or len(schedule_date) < 10:
+            return time_str
+        # Replace the date part (first 10 chars) with the schedule date
+        if len(time_str) >= 10 and "T" in time_str:
+            return schedule_date + time_str[10:]
+        return time_str
+
+    @staticmethod
     def _adjust_time(time_str: str | None, adjust_minutes: int) -> str | None:
         """Apply adjustMinutes offset to a time string."""
         if not time_str or adjust_minutes == 0:
@@ -250,8 +264,20 @@ class StopfinderApiClient:
                         }
                     for trip in student.get("trips", []):
                         adjust = trip.get("adjustMinutes", 0)
-                        raw_pickup = trip.get("pickUpTime")
-                        raw_dropoff = trip.get("dropOffTime")
+                        # Fix dates: API returns wrong date in times,
+                        # real date comes from the schedule day object
+                        raw_pickup = self._fix_date(
+                            trip.get("pickUpTime"), schedule_date
+                        )
+                        raw_dropoff = self._fix_date(
+                            trip.get("dropOffTime"), schedule_date
+                        )
+                        raw_start = self._fix_date(
+                            trip.get("startTime"), schedule_date
+                        )
+                        raw_finish = self._fix_date(
+                            trip.get("finishTime"), schedule_date
+                        )
                         adj_pickup = self._adjust_time(raw_pickup, adjust)
                         adj_dropoff = self._adjust_time(raw_dropoff, adjust)
                         _LOGGER.debug(
@@ -278,10 +304,10 @@ class StopfinderApiClient:
                                 "to_school": trip.get("toSchool", False),
                                 "vehicle_id": trip.get("vehicleId", ""),
                                 "start_time": self._adjust_time(
-                                    trip.get("startTime"), adjust
+                                    raw_start, adjust
                                 ),
                                 "finish_time": self._adjust_time(
-                                    trip.get("finishTime"), adjust
+                                    raw_finish, adjust
                                 ),
                             }
                         )
