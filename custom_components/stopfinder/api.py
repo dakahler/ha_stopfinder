@@ -233,7 +233,9 @@ class StopfinderApiClient:
         students_by_id: dict[str, dict[str, Any]] = {}
 
         if isinstance(data, list):
+            _LOGGER.debug("Parsing %d day(s) of schedule data", len(data))
             for schedule_data in data:
+                schedule_date = schedule_data.get("date", "?")[:10]
                 student_schedules = schedule_data.get("studentSchedules", [])
                 for student in student_schedules:
                     rider_id = student.get("riderId", "")
@@ -248,17 +250,30 @@ class StopfinderApiClient:
                         }
                     for trip in student.get("trips", []):
                         adjust = trip.get("adjustMinutes", 0)
+                        raw_pickup = trip.get("pickUpTime")
+                        raw_dropoff = trip.get("dropOffTime")
+                        adj_pickup = self._adjust_time(raw_pickup, adjust)
+                        adj_dropoff = self._adjust_time(raw_dropoff, adjust)
+                        _LOGGER.debug(
+                            "%s %s: %s toSchool=%s adjust=%d | "
+                            "pickup: %s -> %s | dropoff: %s -> %s",
+                            schedule_date,
+                            student.get("firstName", ""),
+                            trip.get("name", ""),
+                            trip.get("toSchool"),
+                            adjust,
+                            raw_pickup,
+                            adj_pickup,
+                            raw_dropoff,
+                            adj_dropoff,
+                        )
                         students_by_id[rider_id]["trips"].append(
                             {
                                 "name": trip.get("name", ""),
                                 "bus_number": trip.get("busNumber", ""),
-                                "pickup_time": self._adjust_time(
-                                    trip.get("pickUpTime"), adjust
-                                ),
+                                "pickup_time": adj_pickup,
                                 "pickup_stop_name": trip.get("pickUpStopName", ""),
-                                "dropoff_time": self._adjust_time(
-                                    trip.get("dropOffTime"), adjust
-                                ),
+                                "dropoff_time": adj_dropoff,
                                 "dropoff_stop_name": trip.get("dropOffStopName", ""),
                                 "to_school": trip.get("toSchool", False),
                                 "vehicle_id": trip.get("vehicleId", ""),

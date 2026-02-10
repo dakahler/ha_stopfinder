@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
 
@@ -20,6 +21,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import StopfinderCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -133,6 +136,11 @@ class StopfinderBaseSensor(CoordinatorEntity[StopfinderCoordinator], SensorEntit
         now = dt_util.now()
         trips = student.get("trips", [])
 
+        _LOGGER.debug(
+            "%s: finding next trip (to_school=%s) from %d trips, now=%s",
+            self._student_name, to_school, len(trips), now.isoformat(),
+        )
+
         next_trip = None
         next_time = None
 
@@ -156,6 +164,19 @@ class StopfinderBaseSensor(CoordinatorEntity[StopfinderCoordinator], SensorEntit
                 if next_time is None or trip_time < next_time:
                     next_time = trip_time
                     next_trip = trip
+
+        if next_trip:
+            _LOGGER.debug(
+                "%s: selected trip %s on %s (pickup=%s, dropoff=%s, to_school=%s)",
+                self._student_name,
+                next_trip.get("name"),
+                next_time.isoformat() if next_time else "?",
+                next_trip.get("pickup_time"),
+                next_trip.get("dropoff_time"),
+                next_trip.get("to_school"),
+            )
+        else:
+            _LOGGER.debug("%s: no future trip found for to_school=%s", self._student_name, to_school)
 
         return next_trip
 
@@ -192,7 +213,13 @@ class StopfinderNextPickupSensor(StopfinderBaseSensor):
         trip = self._get_next_trip(to_school=True)
         if not trip:
             return None
-        return self._parse_datetime(trip.get("pickup_time"))
+        raw = trip.get("pickup_time")
+        parsed = self._parse_datetime(raw)
+        _LOGGER.debug(
+            "%s next_pickup: raw=%s parsed=%s (trip=%s)",
+            self._student_name, raw, parsed, trip.get("name"),
+        )
+        return parsed
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -239,7 +266,13 @@ class StopfinderNextDropoffSensor(StopfinderBaseSensor):
         trip = self._get_next_trip(to_school=False)
         if not trip:
             return None
-        return self._parse_datetime(trip.get("dropoff_time"))
+        raw = trip.get("dropoff_time")
+        parsed = self._parse_datetime(raw)
+        _LOGGER.debug(
+            "%s next_dropoff: raw=%s parsed=%s (trip=%s)",
+            self._student_name, raw, parsed, trip.get("name"),
+        )
+        return parsed
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
