@@ -1,0 +1,194 @@
+openapi: 3.0.3
+info:
+  title: Stopfinder API
+  version: 1.0.0
+  description: "OpenAPI specification for the Stopfinder service used by the Home Assistant integration."
+servers:
+  - url: "{transfinder_base_url}"
+    description: Transfinder host used to discover the Stopfinder API base URL
+    variables:
+      transfinder_base_url:
+        default: "https://transfinder.example"
+  - url: "{api_base_url}"
+    description: Stopfinder API base URL (discovered via Transfinder)
+    variables:
+      api_base_url:
+        default: "https://api.stopfinder.example"
+paths:
+  /$xcom/getStopfinder.asp:
+    get:
+      summary: Discover Stopfinder API base URL
+      description: Returns the full Stopfinder API base URL as plain text when queried on a Transfinder server.
+      parameters:
+        - in: query
+          name: email
+          schema:
+            type: string
+          required: false
+          description: Email parameter often included by clients (typically ignored by the server).
+      responses:
+        "200":
+          description: Plain-text URL of the Stopfinder API (e.g. https://api.stopfinder.example)
+          content:
+            text/plain:
+              schema:
+                type: string
+  /tokens:
+    post:
+      summary: Authenticate and get a token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                grantType:
+                  type: string
+                  example: password
+                Username:
+                  type: string
+                Password:
+                  type: string
+                deviceId:
+                  type: string
+                rfApiVersion:
+                  type: string
+              required: [grantType, Username, Password, deviceId, rfApiVersion]
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                required: [token]
+        "201":
+          description: Authentication created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        "400":
+          description: Invalid credentials
+  /systems/apiversions:
+    get:
+      summary: Get API versions and client ID
+      security:
+        - TokenAuth: []
+      responses:
+        "200":
+          description: Array of API version objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    clientId:
+                      type: string
+                    version:
+                      type: string
+                  required: [clientId]
+  /students:
+    get:
+      summary: Get student schedules
+      description: |
+        Returns schedule data for students between `dateStart` and `dateEnd`.
+      security:
+        - TokenAuth: []
+      parameters:
+        - in: query
+          name: dateStart
+          schema:
+            type: string
+            format: date
+          required: true
+          description: Start date (YYYY-MM-DD)
+        - in: query
+          name: dateEnd
+          schema:
+            type: string
+            format: date
+          required: true
+          description: End date (YYYY-MM-DD)
+      responses:
+        "200":
+          description: Array of schedule day objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduleDay'
+components:
+  securitySchemes:
+    TokenAuth:
+      type: apiKey
+      in: header
+      name: Token
+  schemas:
+    TokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+    ScheduleDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        studentSchedules:
+          type: array
+          items:
+            $ref: '#/components/schemas/StudentSchedule'
+    StudentSchedule:
+      type: object
+      properties:
+        riderId:
+          type: string
+        firstName:
+          type: string
+        lastName:
+          type: string
+        grade:
+          type: string
+        school:
+          type: string
+        trips:
+          type: array
+          items:
+            $ref: '#/components/schemas/Trip'
+    Trip:
+      type: object
+      properties:
+        name:
+          type: string
+        busNumber:
+          type: string
+        pickUpTime:
+          type: string
+          format: date-time
+        pickUpStopName:
+          type: string
+        dropOffTime:
+          type: string
+          format: date-time
+        dropOffStopName:
+          type: string
+        toSchool:
+          type: boolean
+        vehicleId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        finishTime:
+          type: string
+          format: date-time
+      required: [name]
